@@ -49,12 +49,12 @@ ncores <- detectCores()
 registerDoParallel(cores = ncores - 1)
 
 # get evalcor results to check sun angle/tidal height correlations
-cordat <- evalcor(apa, tz, lat, long, progress = T, plot = F)
-apa$cordat <- cordat
+corstd <- evalcor(apa, tz, lat, long, progress = T, plot = F)
+apa$corstd <- corstd
 
 # get evalcor results to check sun angle/tidal height correlations
-cordatflr <- evalcorflr(apa, tz, lat, long, progress = T, plot = F)
-apa$cordatflr <- cordatflr
+corflr <- evalcorflr(apa, tz, lat, long, progress = T, plot = F)
+apa$corflr <- corflr
 
 # filter na tide
 apa <- apa %>% 

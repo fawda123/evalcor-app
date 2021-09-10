@@ -50,17 +50,17 @@ tz <- attr(apa$DateTimeStamp, 'tzone')
 
 ```{r statics}
 toplo <- apa %>% 
-  select(DateTimeStamp, cordat, cordatflr) %>% 
+  select(DateTimeStamp, corstd, corflr) %>% 
   gather('var', 'cor', -DateTimeStamp) %>% 
   mutate(
     var = case_when(
-      var == 'cordat' ~ 'original', 
-      var == 'cordatflr' ~ 'sun angle floored at zero'
+      var == 'corstd' ~ 'standard', 
+      var == 'corflr' ~ 'floored'
     )
   )
 
 # evalcorflr comparison
-flrplo <- ggplot(toplo, aes(x = DateTimeStamp, y = cor, color = var)) + 
+cmpplo <- ggplot(toplo, aes(x = DateTimeStamp, y = cor, color = var)) + 
   geom_line() +
   theme_bw() +
   scale_y_continuous(limits = c(-0.65, 0.65)) +
@@ -78,18 +78,43 @@ flrplo <- ggplot(toplo, aes(x = DateTimeStamp, y = cor, color = var)) +
     y = 'Corr'
   )
 
-# observed base plot
+# observed standard base plot
 toplo <- apa %>% 
-  select(DateTimeStamp, DO_obs, Tide, cordat) %>% 
+  select(DateTimeStamp, DO_obs, Tide, corstd) %>% 
   gather('var', 'val', -DateTimeStamp) %>% 
   mutate(
     var = case_when(
       var == 'DO_obs' ~ 'DO (mg/L)', 
       var == 'Tide' ~ 'Tide height (m)', 
-      var == 'cordat' ~ 'Corr'
+      var == 'corstd' ~ 'Corr'
     )
   )
-obsbs <- ggplot(toplo, aes(x = DateTimeStamp, y = val)) + 
+obsstdbs <- ggplot(toplo, aes(x = DateTimeStamp, y = val)) + 
+  geom_line() +
+  scale_x_datetime(expand = c(0, 0)) +
+  facet_wrap(~var, ncol = 1, scales = 'free_y', strip.position = 'left') +
+  thm +
+  theme(
+    strip.placement = 'outside', 
+    axis.title.y = element_blank()
+    ) +
+  labs(
+    x = NULL, 
+    y = NULL
+  )
+
+# observed floored base plot
+toplo <- apa %>% 
+  select(DateTimeStamp, DO_obs, Tide, corflr) %>% 
+  gather('var', 'val', -DateTimeStamp) %>% 
+  mutate(
+    var = case_when(
+      var == 'DO_obs' ~ 'DO (mg/L)', 
+      var == 'Tide' ~ 'Tide height (m)', 
+      var == 'corflr' ~ 'Corr'
+    )
+  )
+obsflrbs <- ggplot(toplo, aes(x = DateTimeStamp, y = val)) + 
   geom_line() +
   scale_x_datetime(expand = c(0, 0)) +
   facet_wrap(~var, ncol = 1, scales = 'free_y', strip.position = 'left') +
@@ -105,42 +130,42 @@ obsbs <- ggplot(toplo, aes(x = DateTimeStamp, y = val)) +
 ```
 
 ```{r reactives}
-# observed plot
-obsplo <- reactive({
+# observed standard plot
+obsstdplo <- reactive({
   
   # input
   rowsel <- input$rowsel
 
   toadd <- apa[rowsel, 'DateTimeStamp']
-  out <- obsbs + 
+  out <- obsstdbs + 
     geom_vline(xintercept = toadd, col = 'red')
   
   return(out)
     
 })
 
-# corr value at timestep
-corval <- reactive({
+# corr standard value at timestep
+corstdval <- reactive({
   
   # input
   rowsel <- input$rowsel
 
-  out <- evalcorstp(apa, rowsel, tz, lat, long, corv = TRUE) %>% 
+  out <- evalcorstp(apa, rowsel, tz, lat, long, corv = TRUE, flr = FALSE) %>% 
     round(2)
   
   return(out)
   
 })
 
-# values that are correlated
-corplo <- reactive({
+# standard values that are correlated
+corstdplo <- reactive({
   
   # input
   rowsel <- input$rowsel
 
   toadd <- apa[rowsel, 'DateTimeStamp']
     
-  vls <- evalcorstp(apa, rowsel, tz, lat, long, corv = FALSE)
+  vls <- evalcorstp(apa, rowsel, tz, lat, long, corv = FALSE, flr = FALSE)
 
   corv <- cor(vls$tide_angle, vls$sun_angle) %>% 
     round(2)
@@ -157,15 +182,17 @@ corplo <- reactive({
       var = factor(var, levels = c('Tide height\n(m)', 'Tide vec\n(dTide/dt)', 'Tide vec\n(deg)', 'Sun angle\n(deg)')) 
     )
   
-  p1 <- ggplot(toplo, aes(x = DateTimeStamp, y = val)) + 
+  p1 <- ggplot(toplo, aes(x = DateTimeStamp, y = val, color = var)) + 
     geom_line() +
     scale_x_datetime(expand = c(0, 0)) +
+    scale_color_manual(values = c('black', 'black', 'blue', 'blue')) +
     geom_vline(xintercept = toadd, col = 'red') +
     facet_wrap(~var, ncol = 1, scales = 'free_y', strip.position = 'left') +
     thm +
     theme(
       strip.placement = 'outside', 
-      axis.title.y = element_blank()
+      axis.title.y = element_blank(), 
+      legend.position = 'none'
       ) +
     labs(
       x = NULL, 
@@ -173,7 +200,95 @@ corplo <- reactive({
     )
   
   p2 <- ggplot(vls, aes(x = tide_angle, y = sun_angle)) + 
-    geom_point() + 
+    geom_point(color = 'blue') + 
+    geom_smooth(method = 'lm') +
+    thm + 
+    theme(
+      panel.grid.major.x = element_line()
+    ) +
+    labs(
+      x = 'Tide vec (deg)', 
+      y = 'Sun angle (deg)', 
+      title = paste('Correlation', corv)
+    )
+  
+  out <- p1 + p2 + plot_layout(ncol = 2, widths = c(2, 1))
+  
+  return(out)
+
+})
+
+# observed floored plot
+obsflrplo <- reactive({
+  
+  # input
+  rowsel <- input$rowsel
+
+  toadd <- apa[rowsel, 'DateTimeStamp']
+  out <- obsflrbs + 
+    geom_vline(xintercept = toadd, col = 'red')
+  
+  return(out)
+    
+})
+
+# corr floored value at timestep
+corflrval <- reactive({
+  
+  # input
+  rowsel <- input$rowsel
+
+  out <- evalcorstp(apa, rowsel, tz, lat, long, corv = TRUE, flr = TRUE) %>% 
+    round(2)
+  
+  return(out)
+  
+})
+
+# floored values that are correlated
+corflrplo <- reactive({
+  
+  # input
+  rowsel <- input$rowsel
+
+  toadd <- apa[rowsel, 'DateTimeStamp']
+    
+  vls <- evalcorstp(apa, rowsel, tz, lat, long, corv = FALSE, flr = TRUE)
+
+  corv <- cor(vls$tide_angle, vls$sun_angle) %>% 
+    round(2)
+  toplo <- vls %>% 
+    select(DateTimeStamp, Tide, dTide, tide_angle, sun_angle) %>% 
+    gather('var', 'val', -DateTimeStamp) %>% 
+    mutate(
+      var = case_when(
+        var == 'Tide' ~ 'Tide height\n(m)', 
+        var == 'dTide' ~ 'Tide vec\n(dTide/dt)', 
+        var == 'tide_angle' ~ 'Tide vec\n(deg)', 
+        var == 'sun_angle' ~ 'Sun angle\n(deg)'
+      ), 
+      var = factor(var, levels = c('Tide height\n(m)', 'Tide vec\n(dTide/dt)', 'Tide vec\n(deg)', 'Sun angle\n(deg)')) 
+    )
+  
+  p1 <- ggplot(toplo, aes(x = DateTimeStamp, y = val, color = var)) + 
+    geom_line() +
+    scale_x_datetime(expand = c(0, 0)) +
+    scale_color_manual(values = c('black', 'black', 'blue', 'blue')) +
+    geom_vline(xintercept = toadd, col = 'red') +
+    facet_wrap(~var, ncol = 1, scales = 'free_y', strip.position = 'left') +
+    thm +
+    theme(
+      strip.placement = 'outside', 
+      axis.title.y = element_blank(), 
+      legend.position = 'none'
+      ) +
+    labs(
+      x = NULL, 
+      y = NULL
+    )
+  
+  p2 <- ggplot(vls, aes(x = tide_angle, y = sun_angle)) + 
+    geom_point(color = 'blue') + 
     geom_smooth(method = 'lm') +
     thm + 
     theme(
@@ -195,35 +310,55 @@ corplo <- reactive({
 
 This app is an exploratory tool to understand results of the `evalcor` function from [WtRegDO](https://github.com/fawda123/WtRegDO).  For simplicity, 2012 data from Appalachicola Cat Point station is used.  The data were prepared as described [here](https://fawda123.github.io/BASEmetab_script/appalachicola).  
 
-# {.tabset .tabset-pills}
+The correlation from `evalcor` is based on the values within 1 week +/- the center of observation chosen by the slider.  The values that are correlated are the sun angle and an angular velocity for the tidal height.  The sun angle is in degrees above/below the horizon for the standard case and only above the horizon for the floored case (all values below the horizon are assigned to zero).  The angular velocity for the tidal height is estimated from two separate calculations.  First, the change in tidal height over the change in time (dTide/dt) is calculated.  This is an estimate of how "quickly" the tide is changing as a function of tidal height.  Large positive values indicate the tide is increasing, whereas large negative values indicate the tide is decreasing, assuming that the tide moves only in a horizontal direction as reflected by tidal height.  Second, the tidal velocity is converted to an angular velocity in degrees for comparison with the sun angle on the same scale.  The plots at the bottom of the first two tabs show the three tidal vectors and sun angle used in these calculations.  The bottom two plots (in blue) show the values that are correlated within each window.  The general assumption is that biological production and advection are confounded when the tide is moving quickly at a time when the sun is high/low (high/low correlation), causing the detiding method to remove the biological signal in addition to the advection signal.
 
-## `evalcor` diagnostics (standard)
+# {.tabset .tabset-pills}
 
 ```{r}
 sliderInput('rowsel', 'Select observation', min = 1, max = rws, step = 1, value = 6000, width = '100%')
 ```
 
+## `evalcor` diagnostics (standard)
+
+This is an evaluation of results from the standard `evalcor` function in WtRegDO. 
+
 Output from `evalcor` and observed values for the time series.
 
 ```{r}
-output$obsplo <- renderPlot(obsplo())
-plotOutput('obsplo', width = '100%', height = '350px')
+output$obsstdplo <- renderPlot(obsstdplo())
+plotOutput('obsstdplo', width = '100%', height = '350px')
 ```
 
-Values correlated for `evalcor`(correlation  `r renderText(corval())`) 
+Values correlated for `evalcor`(correlation  `r renderText(corstdval())`) 
 
 ```{r}
-output$corplo <- renderPlot(corplo())
-plotOutput('corplo', width = '100%', height = '350px')
+output$corstdplo <- renderPlot(corstdplo())
+plotOutput('corstdplo', width = '100%', height = '350px')
 ```
 
-## `evalcor` diagnostics (floored sun angle)
+## `evalcor` diagnostics (floored)
+
+This is an evaluation of results from a modified `evalcor` function that floors the sun angle estimate at zero (i.e., values below the horizon are treated as zero/no solar radiation to stimulate production). 
+
+Output from `evalcor` and observed values for the time series.
+
+```{r}
+output$obsflrplo <- renderPlot(obsflrplo())
+plotOutput('obsflrplo', width = '100%', height = '350px')
+```
+
+Values correlated for `evalcor`(correlation  `r renderText(corflrval())`) 
+
+```{r}
+output$corflrplo <- renderPlot(corflrplo())
+plotOutput('corflrplo', width = '100%', height = '350px')
+```
 
 ## Standard vs floored plot
 
 This simple plot shows results from the standard `evalcor` function and a modified version that floors the sun angle estimate at zero (i.e., values below the horizon are treated as zero/no solar radiation to stimulate production).
 
 ```{r, fig.height = 4, fig.width = 9, out.width = '100%'}
-print(flrplo)
+print(cmpplo)
 ```
 

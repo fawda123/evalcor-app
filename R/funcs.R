@@ -116,7 +116,7 @@ evalcorflr <- function(dat_in, tz, lat, long, depth_val = 'Tide', daywin = 6, me
 }
 
 # evalcor from wtregdo w/ output for one time step
-evalcorstp <- function(dat_in, row, tz, lat, long, corv = TRUE, depth_val = 'Tide', daywin = 6, method = 'pearson', harm = TRUE, chk_tide = FALSE, constituents = c('M2', 'S2', 'N2', 'K2', 'K1', 'O1', 'P1', 'Q1', 'MF', 'MM', 'SSA', 'M4', 'M6', 'S4', 'MS4')
+evalcorstp <- function(dat_in, row, tz, lat, long, corv = TRUE, depth_val = 'Tide', flr = FALSE, daywin = 6, method = 'pearson', harm = TRUE, chk_tide = FALSE, constituents = c('M2', 'S2', 'N2', 'K2', 'K1', 'O1', 'P1', 'Q1', 'MF', 'MM', 'SSA', 'M4', 'M6', 'S4', 'MS4')
 ){
   
   # sanity check
@@ -139,6 +139,10 @@ evalcorstp <- function(dat_in, row, tz, lat, long, corv = TRUE, depth_val = 'Tid
   locs <- c(long, lat)
   utc_time <- as.POSIXlt(tocor$DateTimeStamp, tz = 'UTC')
   sun_angle <- oce::sunAngle(utc_time, locs[1], locs[2])$altitude
+  
+  if(flr)
+    sun_angle <- pmax(0, sun_angle)
+  
   tocor$sun_angle <- sun_angle
   
   # get tidal predictions from harmonic regression
