@@ -8,17 +8,13 @@ runtime: shiny
 ```{r setup, warning = F, message = F, echo = F}
 knitr::opts_chunk$set(warning = F, message = F, echo = F)
 
-box::use(
-  here[...], 
-  dplyr[...],
-  tidyr[...],
-  SWMPr[import_local, qaqc, comb], 
-  ggplot2[...], 
-  tibble[enframe], 
-  lubridate[...], 
-  oce[...]
-)
-
+library(dplyr)
+library(tidyr)
+library(SWMPr)
+library(ggplot2)
+library(tibble)
+library(lubridate)
+library(oce)
 library(patchwork)
 library(WtRegDO)
 library(shiny)
