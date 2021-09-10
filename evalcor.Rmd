@@ -25,9 +25,9 @@ library(shiny)
 
 source('R/funcs.R')
 
-data(apaevlcr)
+data(apa)
 
-rws <- nrow(apaevlcr)
+rws <- nrow(apa)
 
 # base ggplot theme
 thm <- theme_minimal(base_size = 14) + 
@@ -45,11 +45,11 @@ locs <- SWMPr::stat_locs %>%
   filter(station_code == 'apacp')
 lat <- locs$latitude
 long <- locs$longitude
-tz <- attr(apaevlcr$DateTimeStamp, 'tzone')
+tz <- attr(apa$DateTimeStamp, 'tzone')
 ```
 
 ```{r statics}
-toplo <- apaevlcr %>% 
+toplo <- apa %>% 
   select(DateTimeStamp, cordat, cordatflr) %>% 
   gather('var', 'cor', -DateTimeStamp) %>% 
   mutate(
@@ -79,7 +79,7 @@ flrplo <- ggplot(toplo, aes(x = DateTimeStamp, y = cor, color = var)) +
   )
 
 # observed base plot
-toplo <- apaevlcr %>% 
+toplo <- apa %>% 
   select(DateTimeStamp, DO_obs, Tide, cordat) %>% 
   gather('var', 'val', -DateTimeStamp) %>% 
   mutate(
@@ -111,7 +111,7 @@ obsplo <- reactive({
   # input
   rowsel <- input$rowsel
 
-  toadd <- apaevlcr[rowsel, 'DateTimeStamp']
+  toadd <- apa[rowsel, 'DateTimeStamp']
   out <- obsbs + 
     geom_vline(xintercept = toadd, col = 'red')
   
@@ -125,7 +125,7 @@ corval <- reactive({
   # input
   rowsel <- input$rowsel
 
-  out <- evalcorstp(apaevlcr, rowsel, tz, lat, long, corv = TRUE) %>% 
+  out <- evalcorstp(apa, rowsel, tz, lat, long, corv = TRUE) %>% 
     round(2)
   
   return(out)
@@ -138,9 +138,9 @@ corplo <- reactive({
   # input
   rowsel <- input$rowsel
 
-  toadd <- apaevlcr[rowsel, 'DateTimeStamp']
+  toadd <- apa[rowsel, 'DateTimeStamp']
     
-  vls <- evalcorstp(apaevlcr, rowsel, tz, lat, long, corv = FALSE)
+  vls <- evalcorstp(apa, rowsel, tz, lat, long, corv = FALSE)
 
   corv <- cor(vls$tide_angle, vls$sun_angle) %>% 
     round(2)
@@ -197,7 +197,7 @@ This app is an exploratory tool to understand results of the `evalcor` function 
 
 # {.tabset .tabset-pills}
 
-## `evalcor` diagnostics
+## `evalcor` diagnostics (standard)
 
 ```{r}
 sliderInput('rowsel', 'Select observation', min = 1, max = rws, step = 1, value = 6000, width = '100%')
@@ -217,9 +217,11 @@ output$corplo <- renderPlot(corplo())
 plotOutput('corplo', width = '100%', height = '350px')
 ```
 
-## Comparing results with floored sun angle
+## `evalcor` diagnostics (floored sun angle)
 
-This simple plot shows results from the standard `evalcor` function and a modified version that floors the sun angle estimate at zero (i.e., values below the horizone are treated as zero/no solar radiation to stimulate production).
+## Standard vs floored plot
+
+This simple plot shows results from the standard `evalcor` function and a modified version that floors the sun angle estimate at zero (i.e., values below the horizon are treated as zero/no solar radiation to stimulate production).
 
 ```{r, fig.height = 4, fig.width = 9, out.width = '100%'}
 print(flrplo)

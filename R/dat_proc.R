@@ -16,35 +16,49 @@ box::use(
 
 source(here('R/funcs.R'))
 
-# apa observed with cordat floored sun angle ------------------------------
+# apa cat point 2012 with evalcor and floor sun angle evalcor -------------
 
-# original apaobs created in appalachicola.Rmd
+# import apacp data, clean up with qaqc
+apacpwq <- import_local(station_code = 'apacpwq', path = here('data/222454.zip'))
+apacpwq <- qaqc(apacpwq, qaqc_keep = c('0', '1', '2', '3', '4', '5'))
+apaebmet <- import_local(station_code = 'apaebmet', path = here('data/222454.zip'))
+apaebmet <- qaqc(apaebmet, qaqc_keep = c('0', '1', '2', '3', '4', '5'))
 
-data(apaobs)
-
-apaobs <- apaobs %>%
-  filter(year(DateTimeStamp) == 2012) %>% 
-  select(-cordat)
+# combine wx and wq, select/rename relevant columns
+apa <- comb(apacpwq, apaebmet, timestep = 60, method = 'union') %>% 
+  select(
+    DateTimeStamp = datetimestamp, 
+    Temp = temp, 
+    Sal = sal, 
+    DO_obs = do_mgl,
+    WSpd = wspd,
+    BP = bp,
+    Tide = depth,
+    PAR = totpar
+  )
 
 # site metadata
 locs <- SWMPr::stat_locs %>% 
   filter(station_code == 'apacp')
 lat <- locs$latitude
 long <- locs$longitude
-tz <- attr(apaobs$DateTimeStamp, 'tzone')
+tz <- attr(apa$DateTimeStamp, 'tzone')
 
 # setup parallel backend
 ncores <- detectCores()  
 registerDoParallel(cores = ncores - 1)
 
 # get evalcor results to check sun angle/tidal height correlations
-cordatflr <- evalcorflr(apaobs, tz, lat, long, progress = T, plot = F)
-apaobs$cordatflr <- cordatflr
+cordat <- evalcor(apa, tz, lat, long, progress = T, plot = F)
+apa$cordat <- cordat
 
-# get regular evalcor results
-cordat <- evalcor(apaobs, tz, lat, long, progress = T, plot = F)
-apaobs$cordat <- cordat
-apaevlcr <- apaobs
+# get evalcor results to check sun angle/tidal height correlations
+cordatflr <- evalcorflr(apa, tz, lat, long, progress = T, plot = F)
+apa$cordatflr <- cordatflr
 
-save(apaevlcr, file = here('data/apaevlcr.RData'))
+# filter na tide
+apa <- apa %>% 
+  filter(!is.na(Tide))
+
+save(apa, file = here('data/apa.RData'))
 
